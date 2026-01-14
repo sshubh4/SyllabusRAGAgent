@@ -1,0 +1,8 @@
+streamlit
+anthropic
+langgraph
+sentence-transformers
+faiss-cpu
+pypdf
+python-dotenv
+requests
