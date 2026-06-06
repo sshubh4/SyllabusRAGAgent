@@ -15,9 +15,8 @@ build/
 # Generated at runtime — rebuilt when you upload a PDF
 demo-langraph/embeddings/
 
-# Uploaded PDFs (except the included demo)
+# Uploaded PDFs — users supply their own via the UI
 demo-langraph/data/uploads/*.pdf
-!demo-langraph/data/uploads/CIS 155 Syllabus.pdf
 
 # macOS
 .DS_Store
