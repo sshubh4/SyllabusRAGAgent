@@ -450,13 +450,33 @@ div[data-testid="stHorizontalBlock"] .stButton > button:hover {
 def _md_to_html(text: str) -> str:
     """Minimal markdown → HTML for chat bubble content."""
     t = _html.escape(text)
+    # Strip emojis — they leak through from Claude despite the prompt instruction
+    t = re.sub(r"[\U00010000-\U0010ffff]", "", t)      # surrogate-pair emoji range
+    t = re.sub(r"[☀-➿⬀-⯿ἀ0-῿F]", "", t)  # misc symbols
+    # Headings ## / ### → bold section label on its own line
+    t = re.sub(
+        r"^#{1,3}\s+(.+)$",
+        r'<strong style="display:block;margin-top:10px;color:#c4cfe4">\1</strong>',
+        t, flags=re.MULTILINE,
+    )
+    # Horizontal rules ---
+    t = re.sub(
+        r"^-{3,}$",
+        r'<hr style="border:none;border-top:1px solid #1c2d45;margin:8px 0">',
+        t, flags=re.MULTILINE,
+    )
+    # Bold
     t = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", t, flags=re.DOTALL)
+    # Italic
     t = re.sub(r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"<em>\1</em>", t)
+    # Inline code
     t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+    # Unordered lists
     def _ul(m: re.Match) -> str:
         items = re.findall(r"^[-*]\s+(.+)$", m.group(), re.MULTILINE)
         return "<ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>"
     t = re.sub(r"(?:^[-*]\s+.+\n?)+", _ul, t, flags=re.MULTILINE)
+    # Paragraph and line breaks
     t = re.sub(r"\n{2,}", "<br><br>", t)
     t = t.replace("\n", "<br>")
     return t
