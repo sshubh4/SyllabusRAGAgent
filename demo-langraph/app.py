@@ -347,6 +347,78 @@ st.markdown("""
     font-size: 0.8rem !important;
 }
 
+/* ── Welcome screen ── */
+.welcome {
+    margin: 40px auto 32px auto;
+    max-width: 600px;
+    text-align: center;
+}
+.welcome-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #00e5b0;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+}
+.welcome-body {
+    font-size: 0.85rem;
+    color: #556070;
+    line-height: 1.7;
+    margin-bottom: 28px;
+    font-family: 'JetBrains Mono', monospace;
+}
+.welcome-caps {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+.cap {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border: 1px solid #1c2535;
+    border-radius: 2px;
+    color: #3a6080;
+    background: #0f1520;
+}
+.sample-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #3a4d60;
+    margin-bottom: 10px;
+}
+
+/* Sample question buttons */
+div[data-testid="stHorizontalBlock"] .stButton > button {
+    background: #0f1520 !important;
+    border: 1px solid #1c2535 !important;
+    color: #8ba0c0 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.72rem !important;
+    padding: 8px 12px !important;
+    border-radius: 3px !important;
+    width: 100% !important;
+    text-align: left !important;
+    white-space: normal !important;
+    height: auto !important;
+    line-height: 1.5 !important;
+    transition: border-color 0.15s, color 0.15s !important;
+}
+div[data-testid="stHorizontalBlock"] .stButton > button:hover {
+    border-color: #00e5b0 !important;
+    color: #00e5b0 !important;
+    background: #0a1a18 !important;
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: #080b10; }
@@ -505,6 +577,21 @@ with st.sidebar:
         )
 
     # ── How it works ──────────────────────────────────────────────────────
+    # ── Extraction capabilities ────────────────────────────────────────────
+    st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown('<span class="sb-label">What gets extracted</span>', unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-family:\"JetBrains Mono\",monospace;font-size:0.68rem;"
+        "line-height:1.9;color:#556070'>"
+        "<span style='color:#00e5b0'>&#10003;</span> Body text<br>"
+        "<span style='color:#00e5b0'>&#10003;</span> Tables &amp; grids<br>"
+        "<span style='color:#00e5b0'>&#10003;</span> Bullet lists &amp; schedules<br>"
+        "<span style='color:#c0392b'>&#10007;</span> Images &amp; charts (not extractable)<br>"
+        "<span style='color:#c0392b'>&#10007;</span> Scanned / image-only PDFs"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
     st.markdown("<hr>", unsafe_allow_html=True)
     with st.expander("How it works"):
         st.markdown(
@@ -559,19 +646,56 @@ st.markdown(
 if "messages" not in st.session_state:
     st.session_state.messages: list[dict] = []
 
-for msg in st.session_state.messages:
-    if msg["role"] == "user":
-        _render_user(msg["content"])
-    else:
-        _render_assistant(
-            msg["content"],
-            msg.get("route", "chat"),
-            msg.get("citations") or [],
-        )
+# Welcome screen — shown only when chat is empty
+if not st.session_state.messages:
+    st.markdown(
+        "<div class='welcome'>"
+        "<div class='welcome-title'>// Ready</div>"
+        "<div class='welcome-body'>"
+        "Upload a syllabus PDF from the sidebar, then ask anything.<br>"
+        "Answers are grounded in the document with page citations."
+        "</div>"
+        "<div class='welcome-caps'>"
+        "<div class='cap'>Text extraction</div>"
+        "<div class='cap'>Table parsing</div>"
+        "<div class='cap'>Page citations</div>"
+        "<div class='cap'>LLM routing</div>"
+        "</div>"
+        "<div class='sample-label'>Try asking</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    _SAMPLES = [
+        "What are all the assignment due dates?",
+        "What is the grading breakdown?",
+        "What is the late submission policy?",
+    ]
+    cols = st.columns(3)
+    for col, q in zip(cols, _SAMPLES):
+        with col:
+            if st.button(q, key=f"sample_{q[:12]}"):
+                st.session_state["pending_query"] = q
+                st.rerun()
+else:
+    for msg in st.session_state.messages:
+        if msg["role"] == "user":
+            _render_user(msg["content"])
+        else:
+            _render_assistant(
+                msg["content"],
+                msg.get("route", "chat"),
+                msg.get("citations") or [],
+            )
 
 
 # ── Input ──────────────────────────────────────────────────────────────────
-if query := st.chat_input("Ask about your syllabus, weather, or anything..."):
+typed   = st.chat_input("Ask about your syllabus, weather, or anything...")
+pending = st.session_state.get("pending_query")
+if pending:
+    del st.session_state["pending_query"]
+query = typed or pending
+
+if query:
     _render_user(query)
     st.session_state.messages.append({"role": "user", "content": query})
 

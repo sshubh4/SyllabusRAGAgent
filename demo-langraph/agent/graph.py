@@ -32,7 +32,10 @@ def router_node(state: AgentState) -> dict:
 def syllabus_rag_node(state: AgentState) -> dict:
     try:
         context, citations = retrieve_with_meta(state["query"])
-        result = _claude(SYLLABUS_RAG_PROMPT.format(context=context, query=state["query"]))
+        result = _claude(
+            SYLLABUS_RAG_PROMPT.format(context=context, query=state["query"]),
+            max_tokens=2000,   # syllabi answers can be long — don't cut off
+        )
         return {"result": result, "citations": citations}
     except Exception as exc:
         return {"result": f"Error accessing syllabus: {exc}", "citations": []}
