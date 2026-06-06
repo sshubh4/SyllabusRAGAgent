@@ -347,6 +347,23 @@ st.markdown("""
     font-size: 0.8rem !important;
 }
 
+/* ── Status widget (thinking steps) ── */
+[data-testid="stStatusWidget"] {
+    background: #0f1520 !important;
+    border: 1px solid #1c2535 !important;
+    border-radius: 3px !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+[data-testid="stStatusWidget"] summary,
+[data-testid="stStatusWidget"] p,
+[data-testid="stStatusWidget"] span {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.78rem !important;
+    color: #556070 !important;
+}
+[data-testid="stStatusWidget"] strong { color: #8ba0c0 !important; }
+[data-testid="stStatusWidget"] code   { color: #00e5b0 !important; }
+
 /* ── Welcome screen ── */
 .welcome {
     margin: 40px auto 32px auto;
@@ -671,9 +688,9 @@ if not st.session_state.messages:
         "What is the late submission policy?",
     ]
     cols = st.columns(3)
-    for col, q in zip(cols, _SAMPLES):
+    for i, (col, q) in enumerate(zip(cols, _SAMPLES)):
         with col:
-            if st.button(q, key=f"sample_{q[:12]}"):
+            if st.button(q, key=f"sample_{i}"):   # use index — not q text — to avoid duplicate keys
                 st.session_state["pending_query"] = q
                 st.rerun()
 else:
@@ -704,13 +721,43 @@ if query:
         for m in st.session_state.messages[:-1]
     ]
 
-    with st.spinner("thinking..."):
+    _ROUTE_LABELS = {
+        "syllabus_rag": "SYLLABUS RAG",
+        "weather":      "WEATHER",
+        "chat":         "CHAT",
+    }
+    response, route, citations = "No response generated.", "chat", []
+
+    with st.status("thinking...", expanded=True) as _status:
         try:
-            result    = agent_app.invoke({"query": query, "messages": history})
-            response  = result.get("result", "No response generated.")
-            route     = result.get("tool", "chat")
-            citations = result.get("citations") or []
+            _final: dict = {}
+            for _chunk in agent_app.stream({"query": query, "messages": history}):
+                for _node, _out in _chunk.items():
+                    _final.update(_out)
+
+                    if _node == "router":
+                        _tool = _out.get("tool", "chat")
+                        st.write(f"**Router** → `{_ROUTE_LABELS.get(_tool, _tool)}`")
+
+                    elif _node == "syllabus_rag":
+                        _n = len(_out.get("citations") or [])
+                        st.write(f"**FAISS** → `{_n}` unique chunks retrieved")
+                        st.write("**Claude Sonnet** → generating answer")
+
+                    elif _node == "weather":
+                        st.write("**Open-Meteo** → geocode + forecast fetched")
+                        st.write("**Claude Sonnet** → summarizing")
+
+                    elif _node == "chat":
+                        st.write("**Claude Sonnet** → generating reply")
+
+            _status.update(label="done", state="complete", expanded=False)
+            response  = _final.get("result", "No response generated.")
+            route     = _final.get("tool", "chat")
+            citations = _final.get("citations") or []
+
         except Exception as exc:
+            _status.update(label="error", state="error", expanded=True)
             response, route, citations = f"Error: {exc}", "chat", []
 
     _render_assistant(response, route, citations)
