@@ -4,7 +4,7 @@ from langgraph.graph import StateGraph
 
 from agent.client import get_client
 from agent.prompts import CHAT_PROMPT, SYLLABUS_RAG_PROMPT, WEATHER_PROMPT
-from agent.rag import retrieve
+from agent.rag import retrieve_with_meta
 from agent.router import route_query
 from agent.state import AgentState
 from agent.tools import get_weather
@@ -31,10 +31,11 @@ def router_node(state: AgentState) -> dict:
 
 def syllabus_rag_node(state: AgentState) -> dict:
     try:
-        context = retrieve(state["query"])
-        return {"result": _claude(SYLLABUS_RAG_PROMPT.format(context=context, query=state["query"]))}
+        context, citations = retrieve_with_meta(state["query"])
+        result = _claude(SYLLABUS_RAG_PROMPT.format(context=context, query=state["query"]))
+        return {"result": result, "citations": citations}
     except Exception as exc:
-        return {"result": f"Error accessing syllabus: {exc}"}
+        return {"result": f"Error accessing syllabus: {exc}", "citations": []}
 
 
 def weather_node(state: AgentState) -> dict:

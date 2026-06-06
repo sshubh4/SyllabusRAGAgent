@@ -1,4 +1,5 @@
-from typing import TypedDict, List, Optional
+from typing import Any, Dict, List, Optional, TypedDict
+
 
 class AgentState(TypedDict):
     query: str
@@ -6,4 +7,4 @@ class AgentState(TypedDict):
     tool: Optional[str]
     context: Optional[str]
     result: Optional[str]
-
+    citations: Optional[List[Dict[str, Any]]]  # [{source, page}, ...]

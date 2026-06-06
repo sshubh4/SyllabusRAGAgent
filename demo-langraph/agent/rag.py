@@ -35,11 +35,10 @@ def _load_index() -> tuple[faiss.Index, list[dict]]:
     return index, chunks
 
 
-def retrieve(query: str, k: int = 5) -> str:
+def retrieve_with_meta(query: str, k: int = 5) -> tuple[str, list[dict]]:
     """
-    Return the top-k most relevant chunks as a single string.
-    Each chunk block is prefixed with its source filename and page number so
-    the LLM can include inline citations in its answer.
+    Return (formatted_context, citations) where citations is a deduplicated list
+    of {source, page} dicts in retrieval order — used by the UI to render chips.
     """
     index, chunks = _load_index()
 
@@ -58,9 +57,23 @@ def retrieve(query: str, k: int = 5) -> str:
     _, indices = index.search(query_emb, k)
 
     parts: list[str] = []
+    citations: list[dict] = []
+    seen: set[tuple] = set()
+
     for idx in indices[0]:
         if 0 <= idx < len(chunks):
             c = chunks[idx]
             parts.append(f"[Source: {c['source']}, Page {c['page']}]\n{c['text']}")
+            key = (c["source"], c["page"])
+            if key not in seen:
+                seen.add(key)
+                citations.append({"source": c["source"], "page": c["page"]})
 
-    return "\n\n---\n\n".join(parts) if parts else "No relevant content found."
+    context = "\n\n---\n\n".join(parts) if parts else "No relevant content found."
+    return context, citations
+
+
+def retrieve(query: str, k: int = 5) -> str:
+    """Convenience wrapper — returns formatted context string only."""
+    context, _ = retrieve_with_meta(query, k)
+    return context
