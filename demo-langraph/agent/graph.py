@@ -31,14 +31,24 @@ def router_node(state: AgentState) -> dict:
 
 def syllabus_rag_node(state: AgentState) -> dict:
     try:
-        context, citations = retrieve_with_meta(state["query"])
+        context, citations, retrieval_items, low_relevance = retrieve_with_meta(state["query"])
         result = _claude(
             SYLLABUS_RAG_PROMPT.format(context=context, query=state["query"]),
-            max_tokens=2000,   # syllabi answers can be long — don't cut off
+            max_tokens=2000,
         )
-        return {"result": result, "citations": citations}
+        return {
+            "result":            result,
+            "citations":         citations,
+            "retrieval_context": retrieval_items,
+            "low_relevance":     low_relevance,
+        }
     except Exception as exc:
-        return {"result": f"Error accessing syllabus: {exc}", "citations": []}
+        return {
+            "result":            f"Error accessing syllabus: {exc}",
+            "citations":         [],
+            "retrieval_context": [],
+            "low_relevance":     False,
+        }
 
 
 def weather_node(state: AgentState) -> dict:

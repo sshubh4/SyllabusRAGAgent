@@ -300,6 +300,18 @@ st.markdown("""
 .badge-weather      { background: #0f2a4a; color: #63b3ed; border: 1px solid #1a4a7a; }
 .badge-chat         { background: #0f1928; color: #4a6a8a; border: 1px solid #1c2d45; }
 
+/* ── Low-relevance warning ── */
+.low-rel-warn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #b7791f;
+    border: 1px solid #744210;
+    border-radius: 2px;
+    padding: 1px 6px;
+    background: #1a1200;
+    line-height: 1.7;
+}
+
 /* ── Citation chips ── */
 .citation-chip {
     font-family: 'JetBrains Mono', monospace;
@@ -331,6 +343,23 @@ st.markdown("""
 }
 [data-testid="stChatInput"] textarea::placeholder {
     color: #2a3d50 !important;
+}
+
+/* ── Retrieved context expander (main area) ── */
+.main [data-testid="stExpander"],
+[data-testid="stMainBlockContainer"] [data-testid="stExpander"] {
+    background: #080b10 !important;
+    border: 1px solid #1c2535 !important;
+    border-left: 2px solid #1e3a5f !important;
+    border-radius: 0 3px 3px 0 !important;
+    margin: 2px 0 14px 0 !important;
+}
+[data-testid="stCodeBlock"] pre {
+    background: #080b10 !important;
+    border: 1px solid #1c2535 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.72rem !important;
+    color: #8ba0c0 !important;
 }
 
 /* ── Alerts ── */
@@ -498,17 +527,27 @@ def _render_user(content: str) -> None:
     )
 
 
-def _render_assistant(content: str, route: str, citations: list[dict]) -> None:
+def _render_assistant(
+    content: str,
+    route: str,
+    citations: list[dict],
+    retrieval_context: list[dict] | None = None,
+    low_relevance: bool = False,
+) -> None:
     label, badge_cls = _BADGE_META.get(route, ("CHAT", "badge-chat"))
-    badge  = f'<span class="route-badge {badge_cls}">{label}</span>'
-    chips  = "".join(
+    badge = f'<span class="route-badge {badge_cls}">{label}</span>'
+    chips = "".join(
         f'<span class="citation-chip">'
         f'{_html.escape(c.get("source","").removesuffix(".pdf"))}'
-        f' / p.{c.get("page","?")}'
+        f" / p.{c.get('page','?')}"
         f"</span>"
         for c in citations
     )
-    meta = f'<div class="msg-meta">{badge}{chips}</div>'
+    low_rel_html = (
+        '<span class="low-rel-warn">low relevance — answer may be incomplete</span>'
+        if low_relevance else ""
+    )
+    meta = f'<div class="msg-meta">{badge}{chips}{low_rel_html}</div>'
     st.markdown(
         f'<div class="msg-wrap assistant">'
         f'<div class="msg-bubble assistant">'
@@ -517,6 +556,18 @@ def _render_assistant(content: str, route: str, citations: list[dict]) -> None:
         f"</div></div>",
         unsafe_allow_html=True,
     )
+    # Retrieved context viewer — expandable, collapsed by default
+    if retrieval_context:
+        with st.expander(f"Retrieved context — {len(retrieval_context)} chunks", expanded=False):
+            for i, item in enumerate(retrieval_context, 1):
+                score_pct = f"{item['score'] * 100:.0f}%"
+                st.markdown(
+                    f"**Chunk {i}** &nbsp;·&nbsp; "
+                    f"`{_html.escape(item['source'])} p.{item['page']}` &nbsp;·&nbsp; "
+                    f"relevance `{score_pct}`",
+                    unsafe_allow_html=True,
+                )
+                st.code(item["text"], language=None)
 
 
 def _delete_pdf(pdf_path: Path) -> None:
@@ -722,6 +773,8 @@ else:
                 msg["content"],
                 msg.get("route", "chat"),
                 msg.get("citations") or [],
+                msg.get("retrieval_context") or [],
+                msg.get("low_relevance", False),
             )
 
 
@@ -760,8 +813,8 @@ if query:
                         st.write(f"**Router** → `{_ROUTE_LABELS.get(_tool, _tool)}`")
 
                     elif _node == "syllabus_rag":
-                        _n = len(_out.get("citations") or [])
-                        st.write(f"**FAISS** → `{_n}` unique chunks retrieved")
+                        _n = len(_out.get("retrieval_context") or [])
+                        st.write(f"**FAISS** → `{_n}` chunks retrieved")
                         st.write("**Claude Sonnet** → generating answer")
 
                     elif _node == "weather":
@@ -772,18 +825,23 @@ if query:
                         st.write("**Claude Sonnet** → generating reply")
 
             _status.update(label="done", state="complete", expanded=False)
-            response  = _final.get("result", "No response generated.")
-            route     = _final.get("tool", "chat")
-            citations = _final.get("citations") or []
+            response          = _final.get("result", "No response generated.")
+            route             = _final.get("tool", "chat")
+            citations         = _final.get("citations") or []
+            retrieval_context = _final.get("retrieval_context") or []
+            low_relevance     = _final.get("low_relevance", False)
 
         except Exception as exc:
             _status.update(label="error", state="error", expanded=True)
             response, route, citations = f"Error: {exc}", "chat", []
+            retrieval_context, low_relevance = [], False
 
-    _render_assistant(response, route, citations)
+    _render_assistant(response, route, citations, retrieval_context, low_relevance)
     st.session_state.messages.append({
-        "role":      "assistant",
-        "content":   response,
-        "route":     route,
-        "citations": citations,
+        "role":              "assistant",
+        "content":           response,
+        "route":             route,
+        "citations":         citations,
+        "retrieval_context": retrieval_context,
+        "low_relevance":     low_relevance,
     })
