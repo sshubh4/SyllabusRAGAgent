@@ -1,68 +1,40 @@
-ROUTER_PROMPT = """
-You are a routing agent.
+ROUTER_PROMPT = """You are a routing agent. Return exactly one word.
 
-Choose the correct action:
+Routes:
+- syllabus_rag → course content, assignments, exams, deadlines, policies, lectures, notes
+- weather       → weather, temperature, forecast, rain, humidity
+- chat          → everything else
 
-- syllabus_rag → questions about lectures, syllabus, exams, notes
+Query: {query}
 
-- weather → weather-related questions
+Return ONLY one of: syllabus_rag, weather, chat"""
 
-- chat → general conversation
+SYLLABUS_RAG_PROMPT = """You are a study assistant. Answer using ONLY the syllabus excerpts below.
 
-Return ONLY one word:
-
-syllabus_rag, weather, or chat.
-
-User query:
-
-{query}
-
-"""
-
-SYLLABUS_RAG_PROMPT = """
-You are a study assistant.
-
-Answer ONLY using the provided syllabus content.
-
-If the answer is not present, say:
-
+If the answer is not in the excerpts, say exactly:
 "I could not find this in your uploaded syllabus material."
 
-Syllabus content:
+Each excerpt is tagged with its source file and page number. Include these as inline \
+citations in your answer (e.g. "According to Page 3 of CIS 155 Syllabus.pdf, …").
+
+Syllabus excerpts:
 
 {context}
 
-Question:
+Question: {query}
 
-{query}
+Answer clearly and concisely. Cite the page number(s) your answer draws from."""
 
-Answer clearly and step-by-step.
+CHAT_PROMPT = """You are a helpful and concise assistant.
 
-"""
-
-CHAT_PROMPT = """
-You are a helpful and concise assistant.
-
-Conversation:
-
+Conversation history:
 {history}
 
-User:
+User: {query}"""
 
-{query}
-
-"""
-
-WEATHER_PROMPT = """
-Use the weather data below to answer the question.
+WEATHER_PROMPT = """Use the weather data below to answer the question concisely.
 
 Weather data:
-
 {weather}
 
-Question:
-
-{query}
-
-"""
-
+Question: {query}"""

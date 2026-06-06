@@ -1,79 +1,66 @@
-import os
-import faiss
+from __future__ import annotations
+
 import pickle
+from pathlib import Path
+
+import faiss
 from sentence_transformers import SentenceTransformer
 
-INDEX_PATH = "embeddings/syllabus.index"
-DOCS_PATH = "embeddings/docs.pkl"
+BASE_DIR = Path(__file__).parent.parent
+INDEX_PATH = BASE_DIR / "embeddings" / "syllabus.index"
+DOCS_PATH = BASE_DIR / "embeddings" / "docs.pkl"
 
-_embed_model = None
+_embed_model: SentenceTransformer | None = None
 
-def get_embed_model():
+
+def get_embed_model() -> SentenceTransformer:
     global _embed_model
     if _embed_model is None:
         _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
     return _embed_model
 
-def load_index():
-    if not os.path.exists(INDEX_PATH):
+
+def _load_index() -> tuple[faiss.Index, list[dict]]:
+    if not INDEX_PATH.exists():
         raise FileNotFoundError(
-            f"Index file not found: {INDEX_PATH}. "
-# run 'python ingestion/ingest.py' to create the index."
+            "No index found. Upload a PDF syllabus to build the index."
         )
-    if not os.path.exists(DOCS_PATH):
+    if not DOCS_PATH.exists():
         raise FileNotFoundError(
-            f"Documents file not found: {DOCS_PATH}. "
+            "Chunk store not found. Upload a PDF syllabus to rebuild the index."
         )
-    
-    try:
-        index = faiss.read_index(INDEX_PATH)
-        with open(DOCS_PATH, "rb") as f:
-            docs = pickle.load(f)
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to load index or documents: {str(e)}. "
-        ) from e
-    
-    
-    return index, docs
+    index = faiss.read_index(str(INDEX_PATH))
+    with open(DOCS_PATH, "rb") as fh:
+        chunks: list[dict] = pickle.load(fh)
+    return index, chunks
+
 
 def retrieve(query: str, k: int = 5) -> str:
-    try:
-        index, docs = load_index()
-        
-        if len(docs) == 0:
-            raise ValueError(
-                "No syllabus content available. The index is empty. "
-            )
-        
-        model = get_embed_model()
-        query_emb = model.encode([query])
-        
-        #  embedding dimensions match
-        if query_emb.shape[1] != index.d:
-            raise ValueError(
-                f"Embedding dimension mismatch"
-            )
-        
-        k = min(k, len(docs))
-        _, indices = index.search(query_emb, k)
-        
-        # Extract retrieved documents
-        retrieved_docs = []
-        for idx in indices[0]:
-            if 0 <= idx < len(docs):
-                retrieved_docs.append(docs[idx])
-        
-        if not retrieved_docs:
-            return "No relevant content found"
-        
-        return "\n\n".join(retrieved_docs)
-        
-    except (FileNotFoundError, ValueError, RuntimeError) as e:
-        raise
-    except Exception as e:
-        # Catch-all
-        raise RuntimeError(
-            f"Unexpected error during retrieval. retry your upload process "
-        ) from e
+    """
+    Return the top-k most relevant chunks as a single string.
+    Each chunk block is prefixed with its source filename and page number so
+    the LLM can include inline citations in its answer.
+    """
+    index, chunks = _load_index()
 
+    if not chunks:
+        raise ValueError("Index is empty. Re-upload your syllabus.")
+
+    model = get_embed_model()
+    query_emb = model.encode([query])
+
+    if query_emb.shape[1] != index.d:
+        raise ValueError(
+            f"Embedding dimension mismatch: query={query_emb.shape[1]}, index={index.d}."
+        )
+
+    k = min(k, len(chunks))
+    _, indices = index.search(query_emb, k)
+
+    parts: list[str] = []
+    for idx in indices[0]:
+        if 0 <= idx < len(chunks):
+            c = chunks[idx]
+            parts.append(f"[Source: {c['source']}, Page {c['page']}]\n{c['text']}")
+
+    return "\n\n---\n\n".join(parts) if parts else "No relevant content found."

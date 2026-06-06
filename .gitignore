@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+
+# Generated at runtime — rebuilt when you upload a PDF
+demo-langraph/embeddings/
+
+# Uploaded PDFs (except the included demo)
+demo-langraph/data/uploads/*.pdf
+!demo-langraph/data/uploads/CIS 155 Syllabus.pdf
+
+# macOS
+.DS_Store
